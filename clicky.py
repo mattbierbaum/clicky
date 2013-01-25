@@ -8,11 +8,8 @@ from geventwebsocket.handler import WebSocketHandler
 from flask import make_response, Flask, request, render_template, send_from_directory
 
 # FIXME - include a pool so there is a max number of gets
-# FIXME - spatial data structure for quick loading
-
 context = zmq.Context()
 app = Flask(__name__)
-app.debug = True
 
 # out data structure (a LSH of positions and the times it was visited)
 curr = (0,0)
@@ -29,6 +26,12 @@ dsock.bind("inproc://data")
 wsock = context.socket(zmq.PUB)
 wsock.bind("inproc://window")
 
+def get_window():
+    inside = []
+    cx,cy = curr
+    inside.extend( (t,x,y) for x,y in ( (cx+i,cy+j) for i in xrange(-6,7) for j in xrange(-6,7) ) for t in visits.get((x,y), [] ) )
+    return inside
+
 @app.route("/window")
 def handle_window():
     if request.environ.get("wsgi.websocket"):
@@ -36,9 +39,10 @@ def handle_window():
         ssock = context.socket(zmq.SUB)
         ssock.setsockopt(zmq.SUBSCRIBE, "")
         ssock.connect('inproc://window')
-        for p,ts in visits.iteritems():
-            for t in ts:
-                ws.send(simplejson.dumps((t,p[0],p[1])))
+
+        # send the initial window
+        ws.send(simplejson.dumps(get_window()))
+
         while True:
             msg = ssock.recv()
             ws.send(msg)
@@ -52,9 +56,10 @@ def handle_out():
         ssock = context.socket(zmq.SUB)
         ssock.setsockopt(zmq.SUBSCRIBE, "")
         ssock.connect('inproc://data')
-        for p,ts in visits.iteritems():
-            for t in ts:
-                ws.send(simplejson.dumps((t,p[0],p[1])))
+       
+        # send the initial update point
+        ws.send(simplejson.dumps((time,curr[0],curr[1])))
+
         while True:
             msg = ssock.recv()
             ws.send(msg)
@@ -71,7 +76,11 @@ def handle_in():
     
 def handle_newpt(cmd=None):
     global time, visits, curr
-    dx,dy = mvs[cmd]
+    try:
+        dx,dy = mvs[cmd]
+    except KeyError as e:
+        return 
+
     time = time + 1
     curr = (curr[0]+dx, curr[1]+dy)
     cx,cy = curr
@@ -91,12 +100,8 @@ def handle_newpt(cmd=None):
 
     #interesting_points = sorted(interesting_points, key=itemgetter(0) )
     dsock.send(simplejson.dumps((time,cx,cy)))
-    for pt in interesting_points:
-        print "window:", pt
-        wsock.send(simplejson.dumps(pt))
-
-def handle_newwindow(websocket):
-    pass
+    if len(interesting_points) > 0:
+        wsock.send(simplejson.dumps(interesting_points))
 
 @app.route("/<path:path>")
 def handle_file(path=None):

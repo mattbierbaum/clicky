@@ -20,6 +20,7 @@ var points = new Array();
 var cx = 0;
 var cy = 0;
 var time = 0;
+
 var wsout;
 var wswin;
 var wsin;
@@ -44,26 +45,28 @@ function sendpt(c){
     wsin.send(c);
 }
 
+function trimpoints(){
+    var newpts = new Array();
+    for (i=0; i<points.length; i++){
+        var pt = points[i];
+        var tx = pt[1];
+        var ty = pt[2];
+        if (Math.abs(tx-cx) <= 6 && Math.abs(ty-cy) <= 6)
+            newpts.push(pt);
+    }
+    points = newpts;
+}
+
 function openWS(){
     if (wswin === undefined || wswin.readyState === undefined || wswin.readyState > 1) {
         wswin = new WebSocket("ws://" + host +":"+ port + "/window");
         wswin.onmessage = function(evt) {
             var data = $.parseJSON(evt.data);
-            points.push([time, cx, cy]);
-            time = data[0]
-            cx = data[1];
-            cy = data[2];
 
             // get rid of old data as appropriate
-            var newpts = new Array();
-            for (i=0; i<points.length; i++){
-                var pt = points[i];
-                var tx = pt[1];
-                var ty = pt[2];
-                if (Math.abs(tx-cx) <= 6 && Math.abs(ty-cy) <= 6)
-                    newpts.push(pt);
+            for (i=0; i<data.length; i++){
+                points.push(data[i]);
             }
-            points = newpts;
             points.sort(function(a,b){return a[0]-b[0];});
             console.log(points.length);
             draw();
@@ -77,6 +80,7 @@ function openWS(){
             cx = data[1];
             cy = data[2];
 
+            trimpoints();
             points.push([time, cx, cy]);
             draw();
         }
