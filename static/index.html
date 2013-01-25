@@ -19,7 +19,8 @@ var port = "8000";
 var points = new Array();
 var cx = 0;
 var cy = 0;
-var ws;
+var wsout;
+var wsin;
 
 document.onkeydown = KeyPressHappened;
 function KeyPressHappened(e)
@@ -31,30 +32,34 @@ function KeyPressHappened(e)
     else
         code = e.keyCode;
 
-    if (code == 38) {sendpt(0,1);}  // up
-    if (code == 40) {sendpt(0,-1);} // down
-    if (code == 37) {sendpt(-1,0);} // left
-    if (code == 39) {sendpt(1,0);}  // right
+    if (code == 38) {sendpt("u");}  // up
+    if (code == 40) {sendpt("d");} // down
+    if (code == 37) {sendpt("l");} // left
+    if (code == 39) {sendpt("r");}  // right
 }
 
 function ts(x,y){
     return "["+x+","+y+"]";
 }
 
-function sendpt(x, y){
-    $("#status").load("http://"+host+":"+port+"/pt/"+x+"/"+y);
+function sendpt(c){
+    //$("#status").load("http://"+host+":"+port+"/c/"+c);
+    wsin.send(c);
 }
 
 function openWS(){
-    if (ws === undefined || ws.readyState === undefined || ws.readyState > 1) {
-        ws = new WebSocket("ws://" + host +":"+ port + "/datastream");
-        ws.onmessage = function(evt) {
+    if (wsout === undefined || wsout.readyState === undefined || wsout.readyState > 1) {
+        wsout = new WebSocket("ws://" + host +":"+ port + "/out");
+        wsout.onmessage = function(evt) {
             var data = $.parseJSON(evt.data);
             points.push([cx, cy]);
             cx = data[0];
             cy = data[1];
             draw();
         }
+    }
+    if (wsin === undefined || wsin.readyState === undefined || wsin.readyState > 1) {
+        wsin = new WebSocket("ws://" + host +":"+ port + "/in");
     }
 }
  
