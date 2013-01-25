@@ -32,18 +32,13 @@ function KeyPressHappened(e)
     else
         code = e.keyCode;
 
-    if (code == 38) {sendpt("u");}  // up
+    if (code == 38) {sendpt("u");} // up
     if (code == 40) {sendpt("d");} // down
     if (code == 37) {sendpt("l");} // left
-    if (code == 39) {sendpt("r");}  // right
-}
-
-function ts(x,y){
-    return "["+x+","+y+"]";
+    if (code == 39) {sendpt("r");} // right
 }
 
 function sendpt(c){
-    //$("#status").load("http://"+host+":"+port+"/c/"+c);
     wsin.send(c);
 }
 
@@ -107,10 +102,10 @@ function draw(){
 
 <form action="">
 <table >
-<input name='direction' type="button" value="U" onClick="updateU();"> <br />
-<input name='direction' type="button" value="L" onClick="updateL();" >
-<input name='direction' type="button" value="R" onClick="updateR();" > <br />
-<input name='direction' type="button" value="D" onClick="updateD();" >
+<input name='direction' type="button" value="U" onClick="sendpt('u');"> <br />
+<input name='direction' type="button" value="L" onClick="sendpt('l');" >
+<input name='direction' type="button" value="R" onClick="sendpt('r');" > <br />
+<input name='direction' type="button" value="D" onClick="sendpt('d');" >
 </table>
 </form>
 
