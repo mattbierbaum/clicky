@@ -45,6 +45,7 @@ function sendpt(c){
     wsin.send(c);
 }
 
+// get rid of old data as appropriate
 function trimpoints(){
     var newpts = new Array();
     for (i=0; i<points.length; i++){
@@ -63,12 +64,11 @@ function openWS(){
         wswin.onmessage = function(evt) {
             var data = $.parseJSON(evt.data);
 
-            // get rid of old data as appropriate
-            for (i=0; i<data.length; i++){
+            // append the new window, making sure its in time order
+            for (i=0; i<data.length; i++)
                 points.push(data[i]);
-            }
             points.sort(function(a,b){return a[0]-b[0];});
-            console.log(points.length);
+
             draw();
         }
     }
@@ -80,6 +80,7 @@ function openWS(){
             cx = data[1];
             cy = data[2];
 
+            // we've moved, get rid of old data so as not to bloat
             trimpoints();
             points.push([time, cx, cy]);
             draw();
@@ -100,8 +101,8 @@ function draw(){
             datasets.push({  data: [[prev[1],prev[2]], [next[1],next[2]]] ,  points: { radius: 2 },  color: 'blue'  });
     }
     ntl = points[i];
-	datasets.push({  data: [[ntl[1],ntl[2]],[cx,cy]] ,  points: { radius: 2 },  color: 'blue'  });
-	datasets.push( { label: "current" , data: [[cx,cy]] , color: "red", points: { show: true , radius: 5 , fill: true, fillColor: '#FF9999' } } );	    
+	datasets.push({ data: [[ntl[1],ntl[2]],[cx,cy]], points: { radius: 2 },  color: 'blue'  });
+	datasets.push({ label: "current" , data: [[cx,cy]], color: "red", points: {show: true, radius: 5, fill: true, fillColor: '#FF9999' } } );
 
 	var xticks = [];
     var yticks = [];
@@ -135,7 +136,10 @@ function draw(){
 <td><center>
 
 <h1>Clicky</h1><br/>
-<p> Say hello to Clicky, an experiment in collective motion.  <br> Explore.  Use arrow keys or buttons.  <br> Everyone has equal and simultaneous control of Clicky </p>
+<p> Say hello to Clicky, an experiment in collective motion.  
+<br> Explore.  Use arrow keys or buttons.  
+<br> Everyone has equal and simultaneous control of Clicky 
+</p>
 
 <form action="">
 <table >
