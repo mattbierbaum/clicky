@@ -4,12 +4,13 @@ from collections import defaultdict
 from operator import itemgetter
 from gevent.pywsgi import WSGIServer
 from gevent_zeromq import zmq
-from geventwebsocket.handler import WebSocketHandler
+from geventwebsocket import WebSocketHandler, WebSocketError
 from flask import make_response, Flask, request, render_template, send_from_directory
 
 # FIXME - include a pool so there is a max number of gets
 context = zmq.Context()
 app = Flask(__name__)
+app.debug = True
 
 # out data structure (a LSH of positions and the times it was visited)
 curr = (0,0)
@@ -20,11 +21,17 @@ visits[curr].append(time)
 # the valid moves that can be send to /in
 mvs = {"u": [0,1], "d": [0,-1], "l": [-1,0], "r": [1,0]}
 
-dsock = context.socket(zmq.PUB)
-dsock.bind("inproc://data")
+tx_dsock = context.socket(zmq.PUB)
+tx_dsock.bind("inproc://data")
+tx_wsock = context.socket(zmq.PUB)
+tx_wsock.bind("inproc://window")
 
-wsock = context.socket(zmq.PUB)
-wsock.bind("inproc://window")
+rx_dsock = context.socket(zmq.SUB)
+rx_dsock.setsockopt(zmq.SUBSCRIBE, "")
+rx_dsock.connect('inproc://data')
+rx_wsock = context.socket(zmq.SUB)
+rx_wsock.setsockopt(zmq.SUBSCRIBE, "")
+rx_wsock.connect('inproc://window')
 
 def get_window():
     inside = []
@@ -36,34 +43,23 @@ def get_window():
 def handle_window():
     if request.environ.get("wsgi.websocket"):
         ws = request.environ['wsgi.websocket']
-        ssock = context.socket(zmq.SUB)
-        ssock.setsockopt(zmq.SUBSCRIBE, "")
-        ssock.connect('inproc://window')
 
         # send the initial window
         ws.send(simplejson.dumps(get_window()))
-
         while True:
-            msg = ssock.recv()
+            msg = rx_wsock.recv()
             ws.send(msg)
-    return 
-
 
 @app.route("/out")
 def handle_out():
     if request.environ.get("wsgi.websocket"):
         ws = request.environ['wsgi.websocket']
-        ssock = context.socket(zmq.SUB)
-        ssock.setsockopt(zmq.SUBSCRIBE, "")
-        ssock.connect('inproc://data')
        
         # send the initial update point
         ws.send(simplejson.dumps((time,curr[0],curr[1])))
-
         while True:
-            msg = ssock.recv()
+            msg = rx_dsock.recv()
             ws.send(msg)
-    return 
 
 @app.route("/in")
 def handle_in():
@@ -72,7 +68,6 @@ def handle_in():
         while True:
             msg = ws.receive()
             handle_newpt(msg)
-    return 
     
 def handle_newpt(cmd=None):
     global time, visits, curr
@@ -99,9 +94,9 @@ def handle_newpt(cmd=None):
        interesting_points.extend( (t,x,y) for x,y in ( (cx-6,cy+ty) for ty in xrange(-6,7) ) for t in visits.get((x,y),[]) )
 
     #interesting_points = sorted(interesting_points, key=itemgetter(0) )
-    dsock.send(simplejson.dumps((time,cx,cy)))
+    tx_dsock.send(simplejson.dumps((time,cx,cy)))
     if len(interesting_points) > 0:
-        wsock.send(simplejson.dumps(interesting_points))
+        tx_wsock.send(simplejson.dumps(interesting_points))
 
 @app.route("/<path:path>")
 def handle_file(path=None):
