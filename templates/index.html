@@ -1,0 +1,118 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"> 
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="jquery.flot.js"></script>
+
+<title> Clicky </title>
+
+<script type="text/javascript">
+$(document).ready(function() { openWS(); });
+
+// let's keep track of the data by the following:
+// curr -> where the dot is
+// points -> array of all points not current
+// datasets -> array of datasets only build in the display
+
+var host = window.location.hostname;
+var port = "8000";
+var points = new Array();
+var cx = 0;
+var cy = 0;
+var ws;
+
+document.onkeydown = KeyPressHappened;
+function KeyPressHappened(e)
+{
+    if (!e) e = window.event;
+    var code;
+    if ((e.charCode) & (e.keyCode==0))
+        code=e.charCode
+    else
+        code = e.keyCode;
+
+    if (code == 38) {sendpt(0,1);}  // up
+    if (code == 40) {sendpt(0,-1);} // down
+    if (code == 37) {sendpt(-1,0);} // left
+    if (code == 39) {sendpt(1,0);}  // right
+}
+
+function ts(x,y){
+    return "["+x+","+y+"]";
+}
+
+function sendpt(x, y){
+    $("#status").load("http://"+host+":"+port+"/pt/"+x+"/"+y);
+}
+
+function openWS(){
+    if (ws === undefined || ws.readyState === undefined || ws.readyState > 1) {
+        ws = new WebSocket("ws://" + host +":"+ port + "/datastream");
+        ws.onmessage = function(evt) {
+            var data = $.parseJSON(evt.data);
+            points.push([cx, cy]);
+            cx = data[0];
+            cy = data[1];
+            draw();
+        }
+    }
+}
+ 
+function draw(){
+    var datasets = [];
+    var i=0;
+    for (i=0; i<points.length-1; i++)
+	    datasets.push({  data: [points[i], points[i+1]] ,  points: { radius: 2 },  color: 'blue'  });
+	datasets.push({  data: [points[i],[cx,cy]] ,  points: { radius: 2 },  color: 'blue'  });
+	datasets.push( { label: "current" , data: [[cx,cy]] , color: "red", points: { show: true , radius: 5 , fill: true, fillColor: '#FF9999' } } );	    
+
+	var xticks = [];
+    var yticks = [];
+    for (var i=0; i < 10; i++ ){
+        xticks.push( [cx-5 + i, "" ] );
+        yticks.push( [cy-5 + i, "" ] );
+    }
+
+    $.plot($("#placeholder"),  
+	    datasets , 
+	    {
+	        series:  { lines: { show: true } , points: { show: true }},
+            lines: { show: true},
+            points: { show: true  },
+            xaxis: { show: true, min: cx-5, max: cx+5 , ticks: xticks},
+            yaxis: { show: true, min: cy-5, max: cy+5 , ticks: yticks},
+            grid: { show: true, backgroundColor: { colors: ["#FFF", "#DDD"] } },
+            legend: false
+        }
+    );
+}
+
+
+</script>
+</head>
+
+
+<center>
+<table border='0'><tr>
+<td><center><div id="placeholder" style="width:540px;height:540px;"></div></center></td>
+<td><center>
+
+<h1>Clicky</h1><br/>
+<p> Say hello to Clicky, an experiment in collective motion.  <br> Explore.  Use arrow keys or buttons.  <br> Everyone has equal and simultaneous control of Clicky </p>
+
+<form action="">
+<table >
+<input name='direction' type="button" value="U" onClick="updateU();"> <br />
+<input name='direction' type="button" value="L" onClick="updateL();" >
+<input name='direction' type="button" value="R" onClick="updateR();" > <br />
+<input name='direction' type="button" value="D" onClick="updateD();" >
+</table>
+</form>
+
+</center></td>
+</tr></table>
+
+</center>
+<div id='status'></div>
+</body>
+</html>
