@@ -26,13 +26,6 @@ tx_dsock.bind("inproc://data")
 tx_wsock = context.socket(zmq.PUB)
 tx_wsock.bind("inproc://window")
 
-rx_dsock = context.socket(zmq.SUB)
-rx_dsock.setsockopt(zmq.SUBSCRIBE, "")
-rx_dsock.connect('inproc://data')
-rx_wsock = context.socket(zmq.SUB)
-rx_wsock.setsockopt(zmq.SUBSCRIBE, "")
-rx_wsock.connect('inproc://window')
-
 def get_window():
     inside = []
     cx,cy = curr
@@ -44,22 +37,36 @@ def handle_window():
     if request.environ.get("wsgi.websocket"):
         ws = request.environ['wsgi.websocket']
 
+        rx_wsock = context.socket(zmq.SUB)
+        rx_wsock.setsockopt(zmq.SUBSCRIBE, "")
+        rx_wsock.connect('inproc://window')
+
         # send the initial window
         ws.send(simplejson.dumps(get_window()))
         while True:
             msg = rx_wsock.recv()
+            if msg is None:
+                break
             ws.send(msg)
+    return ""
 
 @app.route("/out")
 def handle_out():
     if request.environ.get("wsgi.websocket"):
         ws = request.environ['wsgi.websocket']
+
+        rx_dsock = context.socket(zmq.SUB)
+        rx_dsock.setsockopt(zmq.SUBSCRIBE, "")
+        rx_dsock.connect('inproc://data')
        
         # send the initial update point
         ws.send(simplejson.dumps((time,curr[0],curr[1])))
         while True:
             msg = rx_dsock.recv()
+            if msg is None:
+                break
             ws.send(msg)
+    return ""
 
 @app.route("/in")
 def handle_in():
@@ -67,9 +74,13 @@ def handle_in():
         ws = request.environ['wsgi.websocket']
         while True:
             msg = ws.receive()
+            if msg is None:
+                break
             handle_newpt(msg)
-    
+    return ""
+
 def handle_newpt(cmd=None):
+    gevent.sleep(0.01)
     global time, visits, curr
     try:
         dx,dy = mvs[cmd]
