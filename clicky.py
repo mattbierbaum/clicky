@@ -1,4 +1,5 @@
 import gevent
+import time as timer
 import simplejson
 from collections import defaultdict
 from operator import itemgetter
@@ -10,7 +11,7 @@ from flask import make_response, Flask, request, render_template, send_from_dire
 # FIXME - include a pool so there is a max number of gets
 context = zmq.Context()
 app = Flask(__name__)
-app.debug = True
+#app.debug = True
 
 # out data structure (a LSH of positions and the times it was visited)
 curr = (0,0)
@@ -80,7 +81,8 @@ def handle_in():
     return ""
 
 def handle_newpt(cmd=None):
-    gevent.sleep(0.01)
+    #time_start = timer.time()
+    gevent.sleep(0.001)
     global time, visits, curr
     try:
         dx,dy = mvs[cmd]
@@ -108,6 +110,8 @@ def handle_newpt(cmd=None):
     tx_dsock.send(simplejson.dumps((time,cx,cy)))
     if len(interesting_points) > 0:
         tx_wsock.send(simplejson.dumps(interesting_points))
+        #time_end = timer.time()
+        #print "evaluation time:", time_end - time_start
 
 @app.route("/<path:path>")
 def handle_file(path=None):
