@@ -90,7 +90,8 @@ def handle_newpt(cmd=None):
         return 
 
     time = time + 1
-    curr = (curr[0]+dx, curr[1]+dy)
+    ox,oy = curr
+    curr  = (ox+dx, oy+dy)
     cx,cy = curr
 
     visits[curr].append(time)
@@ -105,10 +106,22 @@ def handle_newpt(cmd=None):
        interesting_points.extend( (t,x,y) for x,y in ( (cx+6,cy+ty) for ty in xrange(-6,7) ) for t in visits.get((x,y),[]) )
     if cmd == 'l':
        interesting_points.extend( (t,x,y) for x,y in ( (cx-6,cy+ty) for ty in xrange(-6,7) ) for t in visits.get((x,y),[]) )
+    interesting_points = sorted(interesting_points, key=itemgetter(0))
 
-    #interesting_points = sorted(interesting_points, key=itemgetter(0) )
     tx_dsock.send(simplejson.dumps((time,cx,cy)))
     if len(interesting_points) > 0:
+        """
+        tseq = {}
+        tpts = []
+
+        for i in xrange(len(tseq)-1):
+            currpoint = (tseq[i][1], tseq[i][2])
+            nextpoint = (tseq[i+1][1], tseq[i+1][2])
+            tup = (currpoint, nextpoint)
+            if not tseq.get(tuple(sorted(tup)), None):
+                tseq[tup] = 1
+                tpts.append( currpoint )
+        """
         tx_wsock.send(simplejson.dumps(interesting_points))
         #time_end = timer.time()
         #print "evaluation time:", time_end - time_start
