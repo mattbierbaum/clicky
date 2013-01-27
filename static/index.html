@@ -50,11 +50,6 @@ KeyboardController({
     40: function() { sendpt("d"); }
 }, 200);
 
-// let's keep track of the data by the following:
-// curr -> where the dot is
-// points -> array of all points not current
-// datasets -> array of datasets only build in the display
-
 var host = window.location.hostname;
 var port = "8000";
 var points = new Array();
@@ -155,11 +150,12 @@ function draw(){
 </head>
 
 
+<div class='hero-unit'>
 <center>
 <table border='0'><tr>
 <td><center><div id="placeholder" style="width:540px;height:540px;"></div></center></td>
-<td><center>
 
+<td><center>
 <h1>Clicky</h1><br/>
 <p> Say hello to Clicky, an experiment in collective motion.  
 <br> Explore.  Use arrow keys or buttons.  
@@ -167,16 +163,15 @@ function draw(){
 </p>
 
 <form action="">
-<table >
-<input name='direction' type="button" value="U" onClick="sendpt('u');" class="btn btn-large btn-primary" > <br />
-<input name='direction' type="button" value="L" onClick="sendpt('l');" class="btn btn-large btn-primary" >
-<input name='direction' type="button" value="R" onClick="sendpt('r');" class="btn btn-large btn-primary" > <br />
-<input name='direction' type="button" value="D" onClick="sendpt('d');" class="btn btn-large btn-primary" >
-</table>
+<input id="ubutton" name='direction' type="button" value="U" onClick="sendpt('u');" class="btn btn-large btn-primary" > <br />
+<input id="lbutton" style='margin-right:50px' name='direction' type="button" value="L" onClick="sendpt('l');" class="btn btn-large btn-primary" > 
+<input id="rbutton" name='direction' type="button" value="R" onClick="sendpt('r');" class="btn btn-large btn-primary" > <br />
+<input id="dbutton" name='direction' type="button" value="D" onClick="sendpt('d');" class="btn btn-large btn-primary" >
 </form>
 
 </center></td>
 </tr></table>
+</div>
 
 </center>
 <div id='status'></div>
