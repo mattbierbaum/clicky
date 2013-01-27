@@ -18,7 +18,6 @@ curr = (0,0)
 time = 0
 visits = defaultdict(list)
 visits[curr].append(time)
-segments = {}
 
 # the valid moves that can be send to /in
 mvs = {"u": [0,1], "d": [0,-1], "l": [-1,0], "r": [1,0]}
@@ -28,11 +27,23 @@ tx_dsock.bind("inproc://data")
 tx_wsock = context.socket(zmq.PUB)
 tx_wsock.bind("inproc://window")
 
+def deduplicate(points):
+    tseg, tpts = {}, []
+    for i in xrange(len(points)-1):
+        currpoint = points[i]
+        nextpoint = points[i+1]
+        tup = (currpoint[-2:], nextpoint[-2:])
+        if not tseg.get(tup, None):
+            tseg[tup] = 1
+            tpts.append(currpoint)
+            tpts.append(nextpoint)
+    return tpts
+
 def get_window():
     inside = []
     cx,cy = curr
     inside.extend( (t,x,y) for x,y in ( (cx+i,cy+j) for i in xrange(-6,7) for j in xrange(-6,7) ) for t in visits.get((x,y), [] ) )
-    return inside
+    return deduplicate(inside)
 
 @app.route("/window")
 def handle_window():
@@ -90,11 +101,10 @@ def handle_newpt(cmd=None):
     except KeyError as e:
         return 
 
+    # find out next point
     ox,oy = curr
     curr  = (ox+dx, oy+dy)
     cx,cy = curr
-
-    segments[time] = ((ox,oy),(cx,cy))
 
     # these two statements belong together
     time = time + 1
@@ -112,25 +122,14 @@ def handle_newpt(cmd=None):
        interesting_points.extend( (t,x,y) for x,y in ( (cx-6,cy+ty) for ty in xrange(-6,7) ) for t in visits.get((x,y),[]) )
     interesting_points = sorted(interesting_points, key=itemgetter(0))
 
+    # send the data back along the zmq sockets
     tx_dsock.send(simplejson.dumps((time,cx,cy)))
     if len(interesting_points) > 0:
-        tseg = {}
-        tpts = []
-        for i in xrange(len(interesting_points)-1):
-            currpoint = interesting_points[i]
-            nextpoint = interesting_points[i+1]
-            tup = (currpoint[-2:], nextpoint[-2:])
-            if not tseg.get(tup, None):
-                tseg[tup] = 1
-                tpts.append(currpoint)
-        tpts.append(interesting_points[-1])
-        tx_wsock.send(simplejson.dumps(tpts))
+        tx_wsock.send(simplejson.dumps(deduplicate(interesting_points)))
 
     if app.debug == True:
         time_end = timer.time()
         print "evaluation time: %e" % (time_end - time_start)
-    else:
-        gevent.sleep(0.001)
 
 @app.route("/<path:path>")
 def handle_file(path=None):
