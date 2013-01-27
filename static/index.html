@@ -9,6 +9,46 @@
 <script type="text/javascript">
 $(document).ready(function() { openWS(); });
 
+function KeyboardController(keys, repeat) {
+    var timers = {};
+
+    document.onkeydown= function(event) {
+        var key= (event || window.event).keyCode;
+        if (!(key in keys))
+            return true;
+        if (!(key in timers)) {
+            timers[key]= null;
+            keys[key]();
+            if (repeat!==0)
+                timers[key]= setInterval(keys[key], repeat);
+        }
+        return false;
+    };
+
+    document.onkeyup= function(event) {
+        var key= (event || window.event).keyCode;
+        if (key in timers) {
+            if (timers[key]!==null)
+            clearInterval(timers[key]);
+            delete timers[key];
+        }
+    };
+
+    window.onblur= function() {
+        for (key in timers)
+        if (timers[key]!==null)
+            clearInterval(timers[key]);
+        timers= {};
+    };
+};
+
+KeyboardController({
+    37: function() { sendpt("l"); },
+    38: function() { sendpt("u"); },
+    39: function() { sendpt("r"); },
+    40: function() { sendpt("d"); }
+}, 200);
+
 // let's keep track of the data by the following:
 // curr -> where the dot is
 // points -> array of all points not current
@@ -24,22 +64,6 @@ var time = 0;
 var wsout;
 var wswin;
 var wsin;
-
-document.onkeydown = KeyPressHappened;
-function KeyPressHappened(e)
-{
-    if (!e) e = window.event;
-    var code;
-    if ((e.charCode) & (e.keyCode==0))
-        code=e.charCode
-    else
-        code = e.keyCode;
-
-    if (code == 38) {sendpt("u");} // up
-    if (code == 40) {sendpt("d");} // down
-    if (code == 37) {sendpt("l");} // left
-    if (code == 39) {sendpt("r");} // right
-}
 
 function sendpt(c){
     wsin.send(c);
