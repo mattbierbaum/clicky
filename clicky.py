@@ -1,6 +1,7 @@
 import gevent
 import time as timer
 import simplejson
+import cPickle as pickle
 from collections import defaultdict
 from operator import itemgetter
 from gevent.pywsgi import WSGIServer
@@ -14,6 +15,7 @@ app = Flask(__name__)
 app.debug = True
 
 # out data structure (a LSH of positions and the times it was visited)
+LOGFILE = "clicky.log"
 curr = (0,0)
 time = 0
 visits = defaultdict(list)
@@ -44,6 +46,18 @@ def get_window():
     cx,cy = curr
     inside.extend( (t,x,y) for x,y in ( (cx+i,cy+j) for i in xrange(-6,7) for j in xrange(-6,7) ) for t in visits.get((x,y), [] ) )
     return deduplicate(inside)
+
+def loadlog():
+    global visits, curr, time
+    try:
+        visits, curr, time = pickle.load(open(LOGFILE))
+    except:
+        print "Could not open log file"
+    
+def logger():
+    while True:
+        gevent.sleep(10)
+        pickle.dump((visits,curr,time), open(LOGFILE, "w"), protocol=-1)
 
 @app.route("/window")
 def handle_window():
@@ -140,5 +154,7 @@ def handle_index():
     return send_from_directory("./static", "index.html")
 
 if __name__ == "__main__":
+    loadlog()
+    gevent.spawn(logger)
     http_server = WSGIServer(('',8000), app, handler_class=WebSocketHandler)
     http_server.serve_forever()
