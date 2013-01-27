@@ -11,13 +11,14 @@ from flask import make_response, Flask, request, render_template, send_from_dire
 # FIXME - include a pool so there is a max number of gets
 context = zmq.Context()
 app = Flask(__name__)
-#app.debug = True
+app.debug = True
 
 # out data structure (a LSH of positions and the times it was visited)
 curr = (0,0)
 time = 0
 visits = defaultdict(list)
 visits[curr].append(time)
+segments = {}
 
 # the valid moves that can be send to /in
 mvs = {"u": [0,1], "d": [0,-1], "l": [-1,0], "r": [1,0]}
@@ -81,19 +82,22 @@ def handle_in():
     return ""
 
 def handle_newpt(cmd=None):
-    #time_start = timer.time()
-    gevent.sleep(0.001)
+    time_start = timer.time()
+
     global time, visits, curr
     try:
         dx,dy = mvs[cmd]
     except KeyError as e:
         return 
 
-    time = time + 1
     ox,oy = curr
     curr  = (ox+dx, oy+dy)
     cx,cy = curr
 
+    segments[time] = ((ox,oy),(cx,cy))
+
+    # these two statements belong together
+    time = time + 1
     visits[curr].append(time)
 
     # we need a set of tuples (time, x,y) 
@@ -110,21 +114,23 @@ def handle_newpt(cmd=None):
 
     tx_dsock.send(simplejson.dumps((time,cx,cy)))
     if len(interesting_points) > 0:
-        """
-        tseq = {}
+        tseg = {}
         tpts = []
+        for i in xrange(len(interesting_points)-1):
+            currpoint = interesting_points[i]
+            nextpoint = interesting_points[i+1]
+            tup = (currpoint[-2:], nextpoint[-2:])
+            if not tseg.get(tup, None):
+                tseg[tup] = 1
+                tpts.append(currpoint)
+        tpts.append(interesting_points[-1])
+        tx_wsock.send(simplejson.dumps(tpts))
 
-        for i in xrange(len(tseq)-1):
-            currpoint = (tseq[i][1], tseq[i][2])
-            nextpoint = (tseq[i+1][1], tseq[i+1][2])
-            tup = (currpoint, nextpoint)
-            if not tseq.get(tuple(sorted(tup)), None):
-                tseq[tup] = 1
-                tpts.append( currpoint )
-        """
-        tx_wsock.send(simplejson.dumps(interesting_points))
-        #time_end = timer.time()
-        #print "evaluation time:", time_end - time_start
+    if app.debug == True:
+        time_end = timer.time()
+        print "evaluation time: %e" % (time_end - time_start)
+    else:
+        gevent.sleep(0.001)
 
 @app.route("/<path:path>")
 def handle_file(path=None):
