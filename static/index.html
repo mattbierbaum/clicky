@@ -8,8 +8,11 @@
 <title>Clicky</title>
 
 <script type="text/javascript">
-$(document).ready(function() { openWS(); });
+$(document).ready(function() { openWS(); toggle_info(); setInterval(testconnection, 100);});
 
+//=====================================================
+// begin functions for niceties... not really necessary
+//=====================================================
 function KeyboardController(extra, keys, repeat) {
     var timers = {};
 
@@ -55,9 +58,26 @@ KeyboardController(
         39: function() { sendpt("r"); },
         40: function() { sendpt("d"); }
     }, 
-    150
+    200
 );
 
+function testconnection(){
+    if (wswin === undefined || wswin.readyState === undefined || wswin.readyState > 1 ||
+        wsout === undefined || wsout.readyState === undefined || wsout.readyState > 1 ||
+        wsin === undefined  || wsin.readyState === undefined  || wsin.readyState > 1 ){
+        $("#socketstate").text("Disconnected");
+        $("#socketstate").attr("class", "badge badge-important");
+    } else {
+        $("#socketstate").text("Connected");
+        $("#socketstate").attr("class", "badge badge-success");
+    }
+}
+
+var info = 1;
+function toggle_info(){
+    if (info == 0) {info=1; $("#subinfo").animate({height: '230'});} 
+    else           {info=0; $("#subinfo").animate({height: '0'});}
+}
 
 var hi =new Array("r","l","u","u","d","r","u","d","d","r","u","u","d","d","l");
 function sayhi(){
@@ -66,6 +86,9 @@ function sayhi(){
     }
 }
 
+//=========================================
+// the real meat of clicky javascript
+//=========================================
 var wsout, wswin, wsin;
 var host = window.location.hostname;
 var port = "8000";
@@ -166,10 +189,12 @@ function draw(){
     <center><div class='plot' id="placeholder" style="width:540px;height:540px;"></div></center>
 
     <div class='info'>
-        <h1>Clicky</h1>
-        <p> Say hello to Clicky, an experiment in collective motion. </p>
-        <center><div class="explore"><strong>Explore</strong></div></center>  
-        <p>Use arrow keys or buttons. <br/>Everyone has equal and simultaneous control of Clicky. </p>
+        <h1><a href="#" onclick="toggle_info();">Clicky</a></h1>
+        <div class="info infosub" id="subinfo">
+            <p> Say hello to Clicky, an experiment in collective motion. </p>
+            <center><div class="explore"><strong>Explore.</strong></div></center>  
+            <p>Use arrow keys or buttons. <br/>Everyone has equal and simultaneous control of Clicky. </p>
+        </div>
 
         <center>
         <form action="">
@@ -178,6 +203,10 @@ function draw(){
             <input id="rb" type="button" value="⇨" onClick="sendpt('r');" class="btn" > <br />
             <input id="db" type="button" value="⇩" onClick="sendpt('d');" class="btn" >
         </form>
+        </center>
+
+        <center>
+            <div id="socketstate" class="badge badge-success">Connected</div>
         </center>
     </div>
 </div>

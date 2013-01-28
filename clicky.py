@@ -35,17 +35,17 @@ def deduplicate(points):
         currpoint = points[i]
         nextpoint = points[i+1]
         tup = (currpoint[-2:], nextpoint[-2:])
-        if not tseg.get(tup, None):
+        if tseg.get(tup, None) is None:
             tseg[tup] = 1
             tpts.append(currpoint)
             tpts.append(nextpoint)
-    return tpts
+    return tpts 
 
 def get_window():
     inside = []
     cx,cy = curr
     inside.extend( (t,x,y) for x,y in ( (cx+i,cy+j) for i in xrange(-6,7) for j in xrange(-6,7) ) for t in visits.get((x,y), [] ) )
-    return deduplicate(inside)
+    return inside
 
 def loadlog():
     global visits, curr, time
