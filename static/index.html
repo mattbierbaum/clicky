@@ -5,16 +5,18 @@
 <script type="text/javascript" src="jquery.flot.js"></script>
 <link rel="stylesheet" type="text/css" href="clicky.css">
 
-<title> Clicky </title>
+<title>Clicky</title>
 
 <script type="text/javascript">
 $(document).ready(function() { openWS(); });
 
-function KeyboardController(keys, repeat) {
+function KeyboardController(extra, keys, repeat) {
     var timers = {};
 
     document.onkeydown= function(event) {
         var key= (event || window.event).keyCode;
+        if (key in extra)
+            extra[key]();
         if (!(key in keys))
             return true;
         if (!(key in timers)) {
@@ -43,23 +45,34 @@ function KeyboardController(keys, repeat) {
     };
 };
 
-KeyboardController({
-    37: function() { sendpt("l"); },
-    38: function() { sendpt("u"); },
-    39: function() { sendpt("r"); },
-    40: function() { sendpt("d"); }
-}, 200);
+KeyboardController(
+    {   
+        72: function() { sayhi(); }
+    },
+    {
+        37: function() { sendpt("l"); },
+        38: function() { sendpt("u"); },
+        39: function() { sendpt("r"); },
+        40: function() { sendpt("d"); }
+    }, 
+    150
+);
 
+
+var hi =new Array("r","l","u","u","d","r","u","d","d","r","u","u","d","d","l");
+function sayhi(){
+    for (var i=0; i<hi.length; i++){
+        sendpt(hi[i]);
+    }
+}
+
+var wsout, wswin, wsin;
 var host = window.location.hostname;
 var port = "8000";
 var points = new Array();
 var cx = 0;
 var cy = 0;
 var time = 0;
-
-var wsout;
-var wswin;
-var wsin;
 
 function sendpt(c){
     wsin.send(c);
@@ -149,31 +162,23 @@ function draw(){
 </script>
 </head>
 
+<div class="container">
+    <center><div class='plot' id="placeholder" style="width:540px;height:540px;"></div></center>
 
-<div class='hero-unit'>
-<center>
-<table border='0'><tr>
-<td><center><div id="placeholder" style="width:540px;height:540px;"></div></center></td>
+    <div class='info'>
+        <h1>Clicky</h1>
+        <p> Say hello to Clicky, an experiment in collective motion. </p>
+        <center><div class="explore"><strong>Explore</strong></div></center>  
+        <p>Use arrow keys or buttons. <br/>Everyone has equal and simultaneous control of Clicky. </p>
 
-<td><center>
-<h1>Clicky</h1><br/>
-<p> Say hello to Clicky, an experiment in collective motion.  
-<br> Explore.  Use arrow keys or buttons.  
-<br> Everyone has equal and simultaneous control of Clicky 
-</p>
-
-<form action="">
-<input id="ubutton" name='direction' type="button" value="U" onClick="sendpt('u');" class="btn btn-large btn-primary" > <br />
-<input id="lbutton" style='margin-right:50px' name='direction' type="button" value="L" onClick="sendpt('l');" class="btn btn-large btn-primary" > 
-<input id="rbutton" name='direction' type="button" value="R" onClick="sendpt('r');" class="btn btn-large btn-primary" > <br />
-<input id="dbutton" name='direction' type="button" value="D" onClick="sendpt('d');" class="btn btn-large btn-primary" >
-</form>
-
-</center></td>
-</tr></table>
+        <center>
+        <form action="">
+            <input id="ub" type="button" value="⇧" onClick="sendpt('u');" class="btn" > <br />
+            <input id="lb" type="button" value="⇦" onClick="sendpt('l');" class="btn" style='margin-right:50px'> 
+            <input id="rb" type="button" value="⇨" onClick="sendpt('r');" class="btn" > <br />
+            <input id="db" type="button" value="⇩" onClick="sendpt('d');" class="btn" >
+        </form>
+        </center>
+    </div>
 </div>
-
-</center>
-<div id='status'></div>
-</body>
-</html>
+</body></html>

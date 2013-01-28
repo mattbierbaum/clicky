@@ -128,12 +128,16 @@ def handle_newpt(cmd=None):
     interesting_points = []
     if cmd == 'u':
        interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy+6) for tx in xrange(-6,7) ) for t in visits.get((x,y),[]) )
+       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy+7) for tx in xrange(-6,7) ) for t in visits.get((x,y),[]) )
     if cmd == 'd':
        interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy-6) for tx in xrange(-6,7) ) for t in visits.get((x,y),[]) )
+       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy-7) for tx in xrange(-6,7) ) for t in visits.get((x,y),[]) )
     if cmd == 'r':
        interesting_points.extend( (t,x,y) for x,y in ( (cx+6,cy+ty) for ty in xrange(-6,7) ) for t in visits.get((x,y),[]) )
+       interesting_points.extend( (t,x,y) for x,y in ( (cx+7,cy+ty) for ty in xrange(-6,7) ) for t in visits.get((x,y),[]) )
     if cmd == 'l':
        interesting_points.extend( (t,x,y) for x,y in ( (cx-6,cy+ty) for ty in xrange(-6,7) ) for t in visits.get((x,y),[]) )
+       interesting_points.extend( (t,x,y) for x,y in ( (cx-7,cy+ty) for ty in xrange(-6,7) ) for t in visits.get((x,y),[]) )
     interesting_points = sorted(interesting_points, key=itemgetter(0))
 
     # send the data back along the zmq sockets
