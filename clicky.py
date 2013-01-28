@@ -143,11 +143,12 @@ def handle_newpt(cmd=None):
     # send the data back along the zmq sockets
     tx_dsock.send(simplejson.dumps((time,cx,cy)))
     if len(interesting_points) > 0:
-        tx_wsock.send(simplejson.dumps(deduplicate(interesting_points)))
+        interesting_points = deduplicate(interesting_points)
+        tx_wsock.send(simplejson.dumps(interesting_points))
 
     if app.debug == True:
         time_end = timer.time()
-        print "evaluation time: %e" % (time_end - time_start)
+        print "evaluation time: %e %i" % ((time_end - time_start), len(interesting_points))
 
 @app.route("/<path:path>")
 def handle_file(path=None):
