@@ -75,7 +75,7 @@
 
 .info {
     padding: 10px;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 200;
     line-height: 30px;
     color: inherit;
@@ -88,8 +88,9 @@
 
 .infosub {
     -webkit-transition: height 100ms linear;
-    height: 230px;
+    height: 0px;
     overflow: hidden;
+    font-size: inherit;
 }
 
 .info h1 {

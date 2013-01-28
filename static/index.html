@@ -73,7 +73,7 @@ function testconnection(){
     }
 }
 
-var info = 1;
+var info = 0;
 function toggle_info(){
     if (info == 0) {info=1; $("#subinfo").animate({height: '230'});} 
     else           {info=0; $("#subinfo").animate({height: '0'});}
@@ -96,6 +96,7 @@ var points = new Array();
 var cx = 0;
 var cy = 0;
 var time = 0;
+var side = 5;
 
 function sendpt(c){
     wsin.send(c);
@@ -108,7 +109,7 @@ function trimpoints(){
         var pt = points[i];
         var tx = pt[1];
         var ty = pt[2];
-        if (Math.abs(tx-cx) <= 6 && Math.abs(ty-cy) <= 6)
+        if (Math.abs(tx-cx) <= side+1 && Math.abs(ty-cy) <= side+1)
             newpts.push(pt);
     }
     points = newpts;
@@ -162,9 +163,9 @@ function draw(){
 
 	var xticks = [];
     var yticks = [];
-    for (var i=0; i < 10; i++ ){
-        xticks.push( [cx-5 + i, "" ] );
-        yticks.push( [cy-5 + i, "" ] );
+    for (var i=0; i < 2*side; i++ ){
+        xticks.push( [cx-side + i, "" ] );
+        yticks.push( [cy-side + i, "" ] );
     }
 
     $.plot($("#placeholder"),  
@@ -173,8 +174,8 @@ function draw(){
 	        series: { lines: { show: true } , points: { show: true }},
             lines:  { show: true},
             points: { show: true  },
-            xaxis:  { show: true, min: cx-5, max: cx+5 , ticks: xticks},
-            yaxis:  { show: true, min: cy-5, max: cy+5 , ticks: yticks},
+            xaxis:  { show: true, min: cx-side, max: cx+side , ticks: xticks},
+            yaxis:  { show: true, min: cy-side, max: cy+side , ticks: yticks},
             grid:   { show: true, backgroundColor: { colors: ["#FFF", "#DDD"] } },
             legend: false
         }

@@ -16,6 +16,7 @@ app.debug = True
 
 # out data structure (a LSH of positions and the times it was visited)
 LOGFILE = "clicky.log"
+HH = 5+1
 curr = (0,0)
 time = 0
 visits = defaultdict(list)
@@ -44,7 +45,7 @@ def deduplicate(points):
 def get_window():
     inside = []
     cx,cy = curr
-    inside.extend( (t,x,y) for x,y in ( (cx+i,cy+j) for i in xrange(-6,7) for j in xrange(-6,7) ) for t in visits.get((x,y), [] ) )
+    inside.extend( (t,x,y) for x,y in ( (cx+i,cy+j) for i in xrange(-HH,HH+1) for j in xrange(-HH,HH+1) ) for t in visits.get((x,y), [] ) )
     return inside
 
 def loadlog():
@@ -127,17 +128,17 @@ def handle_newpt(cmd=None):
     # we need a set of tuples (time, x,y) 
     interesting_points = []
     if cmd == 'u':
-       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy+6) for tx in xrange(-6,7) ) for t in visits.get((x,y),[]) )
-       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy+7) for tx in xrange(-6,7) ) for t in visits.get((x,y),[]) )
+       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy+HH) for tx in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
+       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy+HH+1) for tx in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
     if cmd == 'd':
-       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy-6) for tx in xrange(-6,7) ) for t in visits.get((x,y),[]) )
-       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy-7) for tx in xrange(-6,7) ) for t in visits.get((x,y),[]) )
+       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy-HH) for tx in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
+       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy-HH+1) for tx in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
     if cmd == 'r':
-       interesting_points.extend( (t,x,y) for x,y in ( (cx+6,cy+ty) for ty in xrange(-6,7) ) for t in visits.get((x,y),[]) )
-       interesting_points.extend( (t,x,y) for x,y in ( (cx+7,cy+ty) for ty in xrange(-6,7) ) for t in visits.get((x,y),[]) )
+       interesting_points.extend( (t,x,y) for x,y in ( (cx+HH,cy+ty) for ty in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
+       interesting_points.extend( (t,x,y) for x,y in ( (cx+HH+1,cy+ty) for ty in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
     if cmd == 'l':
-       interesting_points.extend( (t,x,y) for x,y in ( (cx-6,cy+ty) for ty in xrange(-6,7) ) for t in visits.get((x,y),[]) )
-       interesting_points.extend( (t,x,y) for x,y in ( (cx-7,cy+ty) for ty in xrange(-6,7) ) for t in visits.get((x,y),[]) )
+       interesting_points.extend( (t,x,y) for x,y in ( (cx-HH,cy+ty) for ty in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
+       interesting_points.extend( (t,x,y) for x,y in ( (cx-HH+1,cy+ty) for ty in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
     interesting_points = sorted(interesting_points, key=itemgetter(0))
 
     # send the data back along the zmq sockets
