@@ -3,6 +3,7 @@ import time as timer
 import simplejson
 import cPickle as pickle
 from collections import defaultdict
+from itertools import tee, izip
 from operator import itemgetter
 from gevent.pywsgi import WSGIServer
 from gevent_zeromq import zmq
@@ -30,23 +31,26 @@ tx_dsock.bind("inproc://data")
 tx_wsock = context.socket(zmq.PUB)
 tx_wsock.bind("inproc://window")
 
+def pairwise(iterable):
+    a,b = tee(iterable)
+    next(b,None)
+    return izip(a,b)
+
 def deduplicate(points):
-    tseg, tpts = {}, []
-    for i in xrange(len(points)-1):
-        currpoint = points[i]
-        nextpoint = points[i+1]
-        tup = (currpoint[-2:], nextpoint[-2:])
-        if tseg.get(tup, None) is None:
-            tseg[tup] = 1
-            tpts.append(currpoint)
-            tpts.append(nextpoint)
-    return tpts 
+    pairs = pairwise(points)
+    seen = set()
+    for (t1,x1,y1),(t2,x2,y2) in pairs:
+        pair = ((x2,y2),(x1,y1)) if x1>x2 else ((x1,y1),(x2,y2))
+        if pair not in seen:
+            seen.add(pair)
+            yield (t1,x1,y1)
+            yield (t2,x2,y2)
 
 def get_window():
     inside = []
     cx,cy = curr
     inside.extend( (t,x,y) for x,y in ( (cx+i,cy+j) for i in xrange(-HH,HH+1) for j in xrange(-HH,HH+1) ) for t in visits.get((x,y), [] ) )
-    return inside
+    return list(deduplicate(sorted(inside, key=itemgetter(0))))
 
 def loadlog():
     global visits, curr, time
@@ -144,7 +148,7 @@ def handle_newpt(cmd=None):
     # send the data back along the zmq sockets
     tx_dsock.send(simplejson.dumps((time,cx,cy)))
     if len(interesting_points) > 0:
-        interesting_points = deduplicate(interesting_points)
+        interesting_points = list(deduplicate(interesting_points))
         tx_wsock.send(simplejson.dumps(interesting_points))
 
     if app.debug == True:
