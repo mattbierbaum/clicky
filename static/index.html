@@ -75,8 +75,8 @@ function testconnection(){
 
 var info = 0;
 function toggle_info(){
-    if (info == 0) {info=1; $("#subinfo").animate({height: '230'});} 
-    else           {info=0; $("#subinfo").animate({height: '0'});}
+    if (info == 0) {info=1; $("#subinfo").animate({height: '230'});}
+    else           {info=0; $("#subinfo").animate({height: '0'});  }
 }
 
 var hi =new Array("r","l","u","u","d","r","u","d","d","r","u","u","d","d","l");
@@ -96,7 +96,7 @@ var points = new Array();
 var cx = 0;
 var cy = 0;
 var time = 0;
-var side = 5;
+var side = 10;
 
 function sendpt(c){
     wsin.send(c);

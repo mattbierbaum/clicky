@@ -13,11 +13,11 @@ from flask import make_response, Flask, request, render_template, send_from_dire
 # FIXME - include a pool so there is a max number of gets
 context = zmq.Context()
 app = Flask(__name__)
-app.debug = True
+#app.debug = True
 
 # out data structure (a LSH of positions and the times it was visited)
 LOGFILE = "clicky.log"
-HH = 5+1
+HH = 10+1
 curr = (0,0)
 time = 0
 visits = defaultdict(list)
