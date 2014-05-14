@@ -17,7 +17,7 @@ app = Flask(__name__)
 
 # out data structure (a LSH of positions and the times it was visited)
 LOGFILE = "clicky.log"
-HH = 10+1
+HH = 5+1
 curr = (0,0)
 time = 0
 visits = defaultdict(list)
@@ -30,6 +30,14 @@ tx_dsock = context.socket(zmq.PUB)
 tx_dsock.bind("inproc://data")
 tx_wsock = context.socket(zmq.PUB)
 tx_wsock.bind("inproc://window")
+
+def toXY(visits):
+    import numpy as np
+    t, p = (list(t) for t in zip(*sorted(zip(visits.values(), visits.keys()))))
+    timedict = {t:p for p,tt in visits.iteritems() for t in tt}
+    ps = [timedict[i] for i in xrange(len(timedict.keys()))]
+    ps = np.array(ps)
+    return ps[:,0], ps[:,1]
 
 def pairwise(iterable):
     a,b = tee(iterable)
@@ -61,7 +69,7 @@ def loadlog():
     
 def logger():
     while True:
-        gevent.sleep(10)
+        gevent.sleep(100)
         pickle.dump((visits,curr,time), open(LOGFILE, "w"), protocol=-1)
 
 @app.route("/window")

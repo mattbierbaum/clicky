@@ -1,9 +1,10 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> 
-<script type="text/javascript" src="jquery.js"></script>
-<script type="text/javascript" src="jquery.flot.js"></script>
-<link rel="stylesheet" type="text/css" href="clicky.css">
+
+<script type="text/javascript" src="/clicky/jquery.js"></script>
+<script type="text/javascript" src="/clicky/jquery.flot.js"></script>
+<link rel="stylesheet" type="text/css" href="/clicky/clicky.css">
 
 <title>Clicky</title>
 
@@ -96,7 +97,7 @@ var points = new Array();
 var cx = 0;
 var cy = 0;
 var time = 0;
-var side = 10;
+var side = 5;
 
 function sendpt(c){
     wsin.send(c);
@@ -182,6 +183,16 @@ function draw(){
     );
 }
 
+
+</script>
+<script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+            (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-38463781-3', 'mattbierbaum.com');
+    ga('send', 'pageview');
 
 </script>
 </head>
