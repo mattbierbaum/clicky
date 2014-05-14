@@ -2,9 +2,9 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> 
 
-<script type="text/javascript" src="/clicky/jquery.js"></script>
-<script type="text/javascript" src="/clicky/jquery.flot.js"></script>
-<link rel="stylesheet" type="text/css" href="/clicky/clicky.css">
+<script type="text/javascript" src="/static/jquery.js"></script>
+<script type="text/javascript" src="/static/jquery.flot.js"></script>
+<link rel="stylesheet" type="text/css" href="/static/clicky.css">
 
 <title>Clicky</title>
 
@@ -63,9 +63,7 @@ KeyboardController(
 );
 
 function testconnection(){
-    if (wswin === undefined || wswin.readyState === undefined || wswin.readyState > 1 ||
-        wsout === undefined || wsout.readyState === undefined || wsout.readyState > 1 ||
-        wsin === undefined  || wsin.readyState === undefined  || wsin.readyState > 1 ){
+    if (sock === undefined || sock.readyState === undefined || sock.readyState > 1){
         $("#socketstate").text("Disconnected");
         $("#socketstate").attr("class", "badge badge-important");
     } else {
@@ -90,9 +88,9 @@ function sayhi(){
 //=========================================
 // the real meat of clicky javascript
 //=========================================
-var wsout, wswin, wsin;
+var sock;
 var host = window.location.hostname;
-var port = "8000";
+var port = "80";
 var points = new Array();
 var cx = 0;
 var cy = 0;
@@ -100,7 +98,7 @@ var time = 0;
 var side = 5;
 
 function sendpt(c){
-    wsin.send(c);
+    sock.send(c);
 }
 
 // get rid of old data as appropriate
@@ -117,35 +115,28 @@ function trimpoints(){
 }
 
 function openWS(){
-    if (wswin === undefined || wswin.readyState === undefined || wswin.readyState > 1) {
-        wswin = new WebSocket("ws://" + host +":"+ port + "/window");
-        wswin.onmessage = function(evt) {
+    if (sock === undefined || sock.readyState === undefined || sock.readyState > 1) {
+        sock = new WebSocket("ws://" + host +":"+ port + "/pts");
+        sock.onmessage = function(evt) {
             var data = $.parseJSON(evt.data);
+            if (typeof data[0] == 'number'){
+                time = data[0]
+                cx = data[1];
+                cy = data[2];
 
-            // append the new window, making sure its in time order
-            for (i=0; i<data.length; i++)
-                points.push(data[i]);
-            points.sort(function(a,b){return a[0]-b[0];});
+                // we've moved, get rid of old data so as not to bloat
+                trimpoints();
+                points.push([time, cx, cy]);
+                draw();
+            } else {
+                // append the new window, making sure its in time order
+                for (i=0; i<data.length; i++)
+                    points.push(data[i]);
+                points.sort(function(a,b){return a[0]-b[0];});
 
-            draw();
+                draw();
+            }
         }
-    }
-    if (wsout === undefined || wsout.readyState === undefined || wsout.readyState > 1) {
-        wsout = new WebSocket("ws://" + host +":"+ port + "/out");
-        wsout.onmessage = function(evt) {
-            var data = $.parseJSON(evt.data);
-            time = data[0]
-            cx = data[1];
-            cy = data[2];
-
-            // we've moved, get rid of old data so as not to bloat
-            trimpoints();
-            points.push([time, cx, cy]);
-            draw();
-        }
-    }
-    if (wsin === undefined || wsin.readyState === undefined || wsin.readyState > 1) {
-        wsin = new WebSocket("ws://" + host +":"+ port + "/in");
     }
 }
  

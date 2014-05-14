@@ -1,22 +1,27 @@
-import gevent
-import time as timer
+#!/usr/bin/env python
+import os
 import simplejson
+import time as timer
+from operator import itemgetter
+from itertools import tee, izip
 import cPickle as pickle
 from collections import defaultdict
-from itertools import tee, izip
-from operator import itemgetter
-from gevent.pywsgi import WSGIServer
-from gevent_zeromq import zmq
-from geventwebsocket import WebSocketHandler, WebSocketError
-from flask import make_response, Flask, request, render_template, send_from_directory
 
-# FIXME - include a pool so there is a max number of gets
-context = zmq.Context()
-app = Flask(__name__)
-#app.debug = True
+import tornado.escape
+import tornado.ioloop
+import tornado.options
+import tornado.web
+import tornado.websocket
+from tornado.options import define, options
+
+import zmq
+from zmq.eventloop import ioloop, zmqstream
+
+define("port", default=8000, help="run on the given port", type=int)
+define("addr", default="127.0.0.1", help="listen address", type=str)
 
 # out data structure (a LSH of positions and the times it was visited)
-LOGFILE = "clicky.log"
+LOGFILE = "./clicky.log"
 HH = 5+1
 curr = (0,0)
 time = 0
@@ -25,11 +30,6 @@ visits[curr].append(time)
 
 # the valid moves that can be send to /in
 mvs = {"u": [0,1], "d": [0,-1], "l": [-1,0], "r": [1,0]}
-
-tx_dsock = context.socket(zmq.PUB)
-tx_dsock.bind("inproc://data")
-tx_wsock = context.socket(zmq.PUB)
-tx_wsock.bind("inproc://window")
 
 def toXY(visits):
     import numpy as np
@@ -62,117 +62,127 @@ def get_window():
 
 def loadlog():
     global visits, curr, time
-    try:
-        visits, curr, time = pickle.load(open(LOGFILE))
-    except:
-        print "Could not open log file"
+    visits, curr, time = pickle.load(open(LOGFILE))
     
 def logger():
-    while True:
-        gevent.sleep(100)
-        pickle.dump((visits,curr,time), open(LOGFILE, "w"), protocol=-1)
+    pickle.dump((visits,curr,time), open(LOGFILE, "w"), protocol=-1)
 
-@app.route("/window")
-def handle_window():
-    if request.environ.get("wsgi.websocket"):
-        ws = request.environ['wsgi.websocket']
-
-        rx_wsock = context.socket(zmq.SUB)
-        rx_wsock.setsockopt(zmq.SUBSCRIBE, "")
-        rx_wsock.connect('inproc://window')
-
-        # send the initial window
-        ws.send(simplejson.dumps(get_window()))
-        while True:
-            msg = rx_wsock.recv()
-            if msg is None:
-                break
-            ws.send(msg)
-    return ""
-
-@app.route("/out")
-def handle_out():
-    if request.environ.get("wsgi.websocket"):
-        ws = request.environ['wsgi.websocket']
-
-        rx_dsock = context.socket(zmq.SUB)
-        rx_dsock.setsockopt(zmq.SUBSCRIBE, "")
-        rx_dsock.connect('inproc://data')
-       
-        # send the initial update point
-        ws.send(simplejson.dumps((time,curr[0],curr[1])))
-        while True:
-            msg = rx_dsock.recv()
-            if msg is None:
-                break
-            ws.send(msg)
-    return ""
-
-@app.route("/in")
-def handle_in():
-    if request.environ.get("wsgi.websocket"):
-        ws = request.environ['wsgi.websocket']
-        while True:
-            msg = ws.receive()
-            if msg is None:
-                break
-            handle_newpt(msg)
-    return ""
-
-def handle_newpt(cmd=None):
-    time_start = timer.time()
-
-    global time, visits, curr
-    try:
-        dx,dy = mvs[cmd]
-    except KeyError as e:
-        return 
-
-    # find out next point
-    ox,oy = curr
-    curr  = (ox+dx, oy+dy)
-    cx,cy = curr
-
-    # these two statements belong together
-    time = time + 1
+def blanklog():
+    time, curr = 0, (0,0)
+    visits = defaultdict(list)
     visits[curr].append(time)
+    pickle.dump((visits,curr,time), open(LOGFILE, "w"), protocol=-1)
 
-    # we need a set of tuples (time, x,y) 
-    interesting_points = []
-    if cmd == 'u':
-       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy+HH) for tx in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
-       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy+HH+1) for tx in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
-    if cmd == 'd':
-       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy-HH) for tx in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
-       interesting_points.extend( (t,x,y) for x,y in ( (cx+tx,cy-HH+1) for tx in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
-    if cmd == 'r':
-       interesting_points.extend( (t,x,y) for x,y in ( (cx+HH,cy+ty) for ty in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
-       interesting_points.extend( (t,x,y) for x,y in ( (cx+HH+1,cy+ty) for ty in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
-    if cmd == 'l':
-       interesting_points.extend( (t,x,y) for x,y in ( (cx-HH,cy+ty) for ty in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
-       interesting_points.extend( (t,x,y) for x,y in ( (cx-HH+1,cy+ty) for ty in xrange(-HH,HH+1) ) for t in visits.get((x,y),[]) )
-    interesting_points = sorted(interesting_points, key=itemgetter(0))
+#====================================================
+# all of the websocket handlers
+#====================================================
+class Application(tornado.web.Application):
+    def __init__(self):
+        handlers = [
+            (r"/", MainHandler),
+            (r"/pts", SocketHandler),
+        ]
+        settings = dict(
+            static_path=os.path.join(os.path.dirname(__file__), "static"),
+            gzip=True,
+        )
+        super(Application, self).__init__(handlers, **settings)
 
-    # send the data back along the zmq sockets
-    tx_dsock.send(simplejson.dumps((time,cx,cy)))
-    if len(interesting_points) > 0:
-        interesting_points = list(deduplicate(interesting_points))
-        tx_wsock.send(simplejson.dumps(interesting_points))
+class MainHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.render("static/index.html")
 
-    if app.debug == True:
-        time_end = timer.time()
-        print "evaluation time: %e %i" % ((time_end - time_start), len(interesting_points))
+class SocketHandler(tornado.websocket.WebSocketHandler):
+    waiters = set()
 
-@app.route("/<path:path>")
-def handle_file(path=None):
-    return send_from_directory("./static", path)
+    def initialize(self):
+        pass
 
-@app.route("/")
-def handle_index():
-    return send_from_directory("./static", "index.html")
+    def allow_draft76(self):
+        return True
+
+    def open(self):
+        SocketHandler.waiters.add(self)
+        self.write_message(simplejson.dumps(get_window()))
+        self.write_message(simplejson.dumps((time, curr[0], curr[1])))
+
+    def on_message(self, cmd):
+        time_start = timer.time()
+
+        global time, visits, curr
+        try:
+            dx,dy = mvs[cmd]
+        except KeyError as e:
+            return 
+
+        # find out next point
+        ox,oy = curr
+        curr  = (ox+dx, oy+dy)
+        cx,cy = curr
+
+        # these two statements belong together
+        time = time + 1
+        visits[curr].append(time)
+
+        # we need a set of tuples (time, x,y) 
+        interesting_points = []
+        if cmd == 'u':
+           interesting_points.extend((t,x,y) for x,y in ((cx+tx,cy+HH) for tx in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+           interesting_points.extend((t,x,y) for x,y in ((cx+tx,cy+HH+1) for tx in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+        if cmd == 'd':
+           interesting_points.extend((t,x,y) for x,y in ((cx+tx,cy-HH) for tx in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+           interesting_points.extend((t,x,y) for x,y in ((cx+tx,cy-HH+1) for tx in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+        if cmd == 'r':
+           interesting_points.extend((t,x,y) for x,y in ((cx+HH,cy+ty) for ty in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+           interesting_points.extend((t,x,y) for x,y in ((cx+HH+1,cy+ty) for ty in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+        if cmd == 'l':
+           interesting_points.extend((t,x,y) for x,y in ((cx-HH,cy+ty) for ty in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+           interesting_points.extend((t,x,y) for x,y in ((cx-HH+1,cy+ty) for ty in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+        interesting_points = sorted(interesting_points, key=itemgetter(0))
+
+        # send the data back along the zmq sockets
+        SocketHandler.send_updates(simplejson.dumps((time,cx,cy)))
+        if len(interesting_points) > 0:
+            interesting_points = list(deduplicate(interesting_points))
+            SocketHandler.send_updates(simplejson.dumps(interesting_points))
+
+        if False:
+            time_end = timer.time()
+            print "evaluation time: %e %i" % ((time_end - time_start), len(interesting_points))
+
+
+    def on_close(self):
+        SocketHandler.waiters.remove(self)
+
+    @classmethod
+    def send_updates(cls, msg):
+        for waiter in cls.waiters:
+            try:
+                waiter.write_message(msg)
+            except Exception as e:
+                print e
+
+
+# functions to add multiple clicky workers in the future
+def pushpt(msg):
+    SocketHandler.send_updates('pts', msg)
+
+def install_zmq_hooks():
+    ioloop.install()
+    context = zmq.Context()
+    ptsock = context.socket(zmq.SUB)
+    ptsock.setsockopt(zmq.SUBSCRIBE, "")
+    ptsock.connect ("tcp://localhost:%s" % 9000)
+    ptstream = zmqstream.ZMQStream(ptsock)
+    ptstream.on_recv(pushpt)
+
 
 if __name__ == "__main__":
     loadlog()
-    gevent.spawn(logger)
-    http_server = WSGIServer(('',8000), app, handler_class=WebSocketHandler)
-    http_server.serve_forever()
+    #tornado.web.ErrorHandler = webutil.ErrorHandler
+    tornado.options.parse_command_line()
+    app = Application()
+    app.listen(options.port, options.addr)
+    tornado.ioloop.PeriodicCallback(logger, 10000).start()
+    tornado.ioloop.IOLoop.instance().start()
+
