@@ -21,12 +21,26 @@ define("port", default=8000, help="run on the given port", type=int)
 define("addr", default="127.0.0.1", help="listen address", type=str)
 
 # out data structure (a LSH of positions and the times it was visited)
+MAINIP, RPORT, CPORT = "127.0.0.1", 9010, 9011
+ADDR_PUB = "tcp://%s:%i" % (MAINIP, RPORT)
+ADDR_REQ = "tcp://%s:%i" % (MAINIP, CPORT)
+
+# if we are on the same machine (faster)
+#ADDR_PUB = "ipc:///tmp/clicky-pub"
+#ADDR_REQ = "ipc:///tmp/clicky-req"
+
+# if we are only one process (fastest)
+#ADDR_PUB = "inproc://clicky-pub"
+#ADDR_REQ = "inproc://click-req"
+TIMEOUT = 10
+
 LOGFILE = "./clicky.log"
 HH = 5+1
 curr = (0,0)
 time = 0
 visits = defaultdict(list)
 visits[curr].append(time)
+pubsock, reqsock = None, None
 
 # the valid moves that can be send to /in
 mvs = {"u": [0,1], "d": [0,-1], "l": [-1,0], "r": [1,0]}
@@ -63,7 +77,7 @@ def get_window():
 def loadlog():
     global visits, curr, time
     visits, curr, time = pickle.load(open(LOGFILE))
-    
+
 def logger():
     pickle.dump((visits,curr,time), open(LOGFILE, "w"), protocol=-1)
 
@@ -107,49 +121,7 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
         self.write_message(simplejson.dumps((time, curr[0], curr[1])))
 
     def on_message(self, cmd):
-        time_start = timer.time()
-
-        global time, visits, curr
-        try:
-            dx,dy = mvs[cmd]
-        except KeyError as e:
-            return 
-
-        # find out next point
-        ox,oy = curr
-        curr  = (ox+dx, oy+dy)
-        cx,cy = curr
-
-        # these two statements belong together
-        time = time + 1
-        visits[curr].append(time)
-
-        # we need a set of tuples (time, x,y) 
-        interesting_points = []
-        if cmd == 'u':
-           interesting_points.extend((t,x,y) for x,y in ((cx+tx,cy+HH) for tx in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
-           interesting_points.extend((t,x,y) for x,y in ((cx+tx,cy+HH+1) for tx in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
-        if cmd == 'd':
-           interesting_points.extend((t,x,y) for x,y in ((cx+tx,cy-HH) for tx in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
-           interesting_points.extend((t,x,y) for x,y in ((cx+tx,cy-HH+1) for tx in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
-        if cmd == 'r':
-           interesting_points.extend((t,x,y) for x,y in ((cx+HH,cy+ty) for ty in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
-           interesting_points.extend((t,x,y) for x,y in ((cx+HH+1,cy+ty) for ty in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
-        if cmd == 'l':
-           interesting_points.extend((t,x,y) for x,y in ((cx-HH,cy+ty) for ty in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
-           interesting_points.extend((t,x,y) for x,y in ((cx-HH+1,cy+ty) for ty in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
-        interesting_points = sorted(interesting_points, key=itemgetter(0))
-
-        # send the data back along the zmq sockets
-        SocketHandler.send_updates(simplejson.dumps((time,cx,cy)))
-        if len(interesting_points) > 0:
-            interesting_points = list(deduplicate(interesting_points))
-            SocketHandler.send_updates(simplejson.dumps(interesting_points))
-
-        if False:
-            time_end = timer.time()
-            print "evaluation time: %e %i" % ((time_end - time_start), len(interesting_points))
-
+        reqsock.send(str(cmd))
 
     def on_close(self):
         SocketHandler.waiters.remove(self)
@@ -164,25 +136,98 @@ class SocketHandler(tornado.websocket.WebSocketHandler):
 
 
 # functions to add multiple clicky workers in the future
-def pushpt(msg):
-    SocketHandler.send_updates('pts', msg)
+def runcmd(cmd):
+    cmd = cmd[0]
+    time_start = timer.time()
+
+    global time, visits, curr
+    try:
+        dx,dy = mvs[cmd]
+    except KeyError as e:
+        return
+
+    # find out next point
+    ox,oy = curr
+    curr  = (ox+dx, oy+dy)
+    cx,cy = curr
+
+    # these two statements belong together
+    time = time + 1
+    visits[curr].append(time)
+
+    # we need a set of tuples (time, x,y)
+    interesting_points = []
+    if cmd == 'u':
+       interesting_points.extend((t,x,y) for x,y in ((cx+tx,cy+HH) for tx in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+       interesting_points.extend((t,x,y) for x,y in ((cx+tx,cy+HH+1) for tx in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+    if cmd == 'd':
+       interesting_points.extend((t,x,y) for x,y in ((cx+tx,cy-HH) for tx in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+       interesting_points.extend((t,x,y) for x,y in ((cx+tx,cy-HH+1) for tx in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+    if cmd == 'r':
+       interesting_points.extend((t,x,y) for x,y in ((cx+HH,cy+ty) for ty in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+       interesting_points.extend((t,x,y) for x,y in ((cx+HH+1,cy+ty) for ty in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+    if cmd == 'l':
+       interesting_points.extend((t,x,y) for x,y in ((cx-HH,cy+ty) for ty in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+       interesting_points.extend((t,x,y) for x,y in ((cx-HH+1,cy+ty) for ty in xrange(-HH,HH+1)) for t in visits.get((x,y),[]) )
+    interesting_points = sorted(interesting_points, key=itemgetter(0))
+
+    # send the data back along the zmq sockets
+    SocketHandler.send_updates(simplejson.dumps((time,cx,cy)))
+    if len(interesting_points) > 0:
+        interesting_points = list(deduplicate(interesting_points))
+        SocketHandler.send_updates(simplejson.dumps(interesting_points))
+
+    if False:
+        time_end = timer.time()
+        print "evaluation time: %e %i" % ((time_end - time_start), len(interesting_points))
+
+def pass_msg(msg):
+    pubsock.send(msg[0])
+    repsock.send(msg[0])
+
+def echo_msg(msg):
+    pass
 
 def install_zmq_hooks():
+    global pubsock, repsock, reqsock
+
     ioloop.install()
     context = zmq.Context()
+    pubsock = context.socket(zmq.PUB)
+    try:
+        pubsock.bind(ADDR_PUB)
+
+        # we succeeded, so we are king of the disk log and
+        # the central queueing service for incoming points
+        print "We are king"
+        repsock = context.socket(zmq.REP)
+        repsock.bind(ADDR_REQ)
+        tstream = zmqstream.ZMQStream(repsock)
+        tstream.on_recv(pass_msg)
+
+        tornado.ioloop.PeriodicCallback(logger, TIMEOUT*1000).start()
+    except zmq.ZMQError as e:
+        print "Slave machine, spinning up"
+
+    reqsock = context.socket(zmq.REQ)
+    reqsock.connect(ADDR_REQ)
+    tstream = zmqstream.ZMQStream(reqsock)
+    tstream.on_recv(echo_msg)
+
     ptsock = context.socket(zmq.SUB)
     ptsock.setsockopt(zmq.SUBSCRIBE, "")
-    ptsock.connect ("tcp://localhost:%s" % 9000)
+    ptsock.connect(ADDR_PUB)
     ptstream = zmqstream.ZMQStream(ptsock)
-    ptstream.on_recv(pushpt)
+    ptstream.on_recv(runcmd)
 
 
 if __name__ == "__main__":
     loadlog()
+    install_zmq_hooks()
+
     #tornado.web.ErrorHandler = webutil.ErrorHandler
     tornado.options.parse_command_line()
     app = Application()
     app.listen(options.port, options.addr)
-    tornado.ioloop.PeriodicCallback(logger, 10000).start()
     tornado.ioloop.IOLoop.instance().start()
 
