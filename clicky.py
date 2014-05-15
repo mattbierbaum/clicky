@@ -35,7 +35,7 @@ ADDR_REQ = "tcp://%s:%i" % (MAINIP, CPORT)
 TIMEOUT = 10
 
 LOGFILE = "./clicky.log"
-HH = 5+1
+HH = 10+1
 curr = (0,0)
 time = 0
 visits = defaultdict(list)
